@@ -1,0 +1,32 @@
+name: Build iPhone IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  iphone:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile native iPhone app
+        run: |
+          set -euo pipefail
+          app=Payload/PolderSMP.app
+          mkdir -p "$app"
+          cp ios/Info.plist "$app/"
+          sips -z 120 120 ios/icon.png --out "$app/AppIcon60@2x.png"
+          sips -z 180 180 ios/icon.png --out "$app/AppIcon60@3x.png"
+          xcrun --sdk iphoneos swiftc -parse-as-library -O -target arm64-apple-ios15.0 -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" ios/App.swift -o "$app/PolderSMP"
+          plutil -lint "$app/Info.plist"
+          zip -qr PolderSMP.ipa Payload
+          unzip -t PolderSMP.ipa
+          file "$app/PolderSMP"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PolderSMP-iPhone
+          path: PolderSMP.ipa
+          retention-days: 7
+          if-no-files-found: error
