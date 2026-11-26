@@ -3,7 +3,6 @@ import WebKit
 import LocalAuthentication
 import Security
 import AVFoundation
-import Vision
 
 @main class App: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
@@ -27,30 +26,7 @@ import Vision
 }
 
 
-/* Camera guidance is local and optional. It never creates or stores a biometric template.
-   Actual enrollment is the subsequent system Face ID check and Keychain protection. */
-struct PoseGuide {
-    private(set) var round = 1
-    private(set) var sectors = Set<Int>()
-    private(set) var finished = false
-    private var neutral: (Double,Double)?
-    mutating func resetCenter(){ neutral=nil }
-    mutating func observe(yaw:Double,pitch:Double) -> Bool {
-        guard !finished,yaw.isFinite,pitch.isFinite else{return false}
-        guard let center=neutral else{neutral=(yaw,pitch);return false}
-        let x=yaw-center.0, y=pitch-center.1
-        guard hypot(x,y)>0.15 else{return false}
-        let angle=atan2(y,x)
-        let sector=(Int(floor((angle+Double.pi/8)/(Double.pi/4)))+8)%8
-        return sectors.insert(sector).inserted
-    }
-    mutating func advance(){
-        guard sectors.count==8,!finished else{return}
-        if round==1 {round=2;sectors.removeAll();neutral=nil}
-        else {finished=true}
-    }
-}
-
+/* Optional local camera preview. Apple Face ID and Keychain perform the actual security check. */
 final class GuidedCameraRing: UIView {
     let preview = AVCaptureVideoPreviewLayer()
     private let disk = CALayer()
@@ -89,8 +65,8 @@ final class GuidedCameraRing: UIView {
     }
     func update(sectors:Set<Int>){
         for (i,m) in marks.enumerated(){
-            // Order matches the pose guide; each of the eight directions illuminates eight ticks.
-            let color=sectors.contains(i/8) ? UIColor.systemGreen.cgColor : UIColor.tertiaryLabel.cgColor
+            // Decorative camera readiness, never an identity result.
+            let color=sectors.contains(i/8) ? UIColor.systemBlue.cgColor : UIColor.tertiaryLabel.cgColor
             guard m.strokeColor != color else{continue}
             let previous=m.presentation()?.strokeColor ?? m.strokeColor
             CATransaction.begin();CATransaction.setDisableActions(true);m.strokeColor=color;CATransaction.commit()
@@ -103,20 +79,16 @@ final class GuidedCameraRing: UIView {
     }
 }
 
-final class FaceGuideController:UIViewController,AVCaptureVideoDataOutputSampleBufferDelegate {
+final class FaceGuideController:UIViewController {
     private let session=AVCaptureSession()
     private let cameraQueue=DispatchQueue(label:"nl.poldersmp.camera")
-    private let frames=DispatchQueue(label:"nl.poldersmp.camera.frames")
     private let ring=GuidedCameraRing(frame:.zero)
     private let heading=UILabel(), detail=UILabel(), progress=UILabel()
     private let action=UIButton(type:.system)
     private let roundProgress=UIProgressView(progressViewStyle:.default)
     private let privacy=UILabel()
-    private var guide=PoseGuide()
-    private var transition=false
     private var active=false
     private var configured=false // cameraQueue only
-    private var lastFrame=0.0 // frames queue only
     private var completion: ((Bool)->Void)?
     init(completion:@escaping (Bool)->Void){
         self.completion=completion;super.init(nibName:nil,bundle:nil)
@@ -135,12 +107,13 @@ final class FaceGuideController:UIViewController,AVCaptureVideoDataOutputSampleB
         for label in [heading,detail,progress,privacy] {label.numberOfLines=0;label.textAlignment = .center;label.adjustsFontForContentSizeCategory=true}
         heading.font = .preferredFont(forTextStyle:.largeTitle);heading.text="Configureer Face ID"
         detail.font = .preferredFont(forTextStyle:.body);detail.textColor = .secondaryLabel
-        detail.text="Plaats je gezicht in de cirkel. Draai je hoofd langzaam rond."
-        progress.font = .monospacedDigitSystemFont(ofSize:14,weight:.medium);progress.text="Oefenronde 1 van 2"
+        detail.text="Kijk gewoon naar je iPhone. Je hoeft je hoofd niet te draaien."
+        progress.font = .monospacedDigitSystemFont(ofSize:14,weight:.medium);progress.text="Klaar om te bevestigen"
         privacy.font = .preferredFont(forTextStyle:.caption1);privacy.textColor = .secondaryLabel
-        privacy.text="De camera is alleen een lokale oefenweergave. Er worden geen foto's of gezichtsscans opgeslagen. Apple bevestigt Face ID hierna."
-        roundProgress.progressTintColor = .systemGreen
-        var cfg=UIButton.Configuration.filled();cfg.title="Direct bevestigen met Face ID";cfg.cornerStyle = .large
+        privacy.text="De camera is optioneel. Apple controleert je gezicht. PolderSMP slaat geen foto’s op."
+        roundProgress.progressTintColor = .systemBlue
+        roundProgress.isHidden=true
+        var cfg=UIButton.Configuration.filled();cfg.title="Face ID inschakelen";cfg.image=UIImage(systemName:"faceid");cfg.imagePadding=10;cfg.cornerStyle = .large
         action.configuration=cfg;action.addTarget(self,action:#selector(continueGuide),for:.touchUpInside)
         ring.translatesAutoresizingMaskIntoConstraints=false
         let stack=UIStackView(arrangedSubviews:[brand,heading,detail,ring,progress,roundProgress,action,privacy])
@@ -185,8 +158,8 @@ final class FaceGuideController:UIViewController,AVCaptureVideoDataOutputSampleB
     }
     private func cameraUnavailable(){
         guard active else{return}
-        detail.text="Camera niet beschikbaar. Je kunt veilig doorgaan met Apple's Face ID."
-        progress.text="Oefenweergave overgeslagen"
+        detail.text="Je kunt ook zonder cameraweergave doorgaan. Apple controleert je gezicht."
+        progress.text="Camera optioneel"
     }
     private func startCamera(){
         cameraQueue.async{[weak self] in
@@ -198,17 +171,10 @@ final class FaceGuideController:UIViewController,AVCaptureVideoDataOutputSampleB
                 }
                 self.session.beginConfiguration()
                 self.session.sessionPreset = .medium
-                let output=AVCaptureVideoDataOutput()
-                output.alwaysDiscardsLateVideoFrames=true
-                guard self.session.canAddInput(input),self.session.canAddOutput(output) else{
+                guard self.session.canAddInput(input) else{
                     self.session.commitConfiguration();DispatchQueue.main.async{self.cameraUnavailable()};return
                 }
-                self.session.addInput(input);self.session.addOutput(output)
-                output.setSampleBufferDelegate(self,queue:self.frames)
-                if let connection=output.connection(with:.video){
-                    if connection.isVideoOrientationSupported {connection.videoOrientation = .portrait}
-                    if connection.isVideoMirroringSupported {connection.automaticallyAdjustsVideoMirroring=false;connection.isVideoMirrored=false}
-                }
+                self.session.addInput(input)
                 self.session.commitConfiguration();self.configured=true
             }
             DispatchQueue.main.async{
@@ -218,6 +184,7 @@ final class FaceGuideController:UIViewController,AVCaptureVideoDataOutputSampleB
                 }
             }
             if !self.session.isRunning {self.session.startRunning()}
+            DispatchQueue.main.async{[weak self] in self?.cameraReady()}
         }
     }
     private func stopCamera(completion: (() -> Void)? = nil){
@@ -226,50 +193,15 @@ final class FaceGuideController:UIViewController,AVCaptureVideoDataOutputSampleB
             if let completion=completion {DispatchQueue.main.async{completion()}}
         }
     }
-    func captureOutput(_ output:AVCaptureOutput,didOutput buffer:CMSampleBuffer,from connection:AVCaptureConnection){
-        let now=CACurrentMediaTime()
-        guard now-lastFrame>0.14,let pixel=CMSampleBufferGetImageBuffer(buffer) else{return}
-        lastFrame=now
-        let request=VNDetectFaceRectanglesRequest()
-        request.revision=VNDetectFaceRectanglesRequestRevision3
-        do{
-            try VNImageRequestHandler(cvPixelBuffer:pixel,orientation:.up,options:[:]).perform([request])
-            let found=request.results ?? []
-            let face=found.count==1 ? found.first : nil
-            // Only temporary angles and positioning leave this callback. Frames are never retained.
-            let valid=face.map{f in f.boundingBox.width>0.20 && f.boundingBox.midX>0.20 && f.boundingBox.midX<0.80 && f.boundingBox.midY>0.15 && f.boundingBox.midY<0.85} ?? false
-            let yaw=face?.yaw?.doubleValue,pitch=face?.pitch?.doubleValue
-            DispatchQueue.main.async{[weak self] in self?.pose(valid:valid,yaw:yaw,pitch:pitch)}
-        }catch{DispatchQueue.main.async{[weak self] in self?.cameraUnavailable()}}
-    }
-    private func pose(valid:Bool,yaw:Double?,pitch:Double?){
-        guard active,!transition,!guide.finished else{return}
-        guard valid,let yaw=yaw,let pitch=pitch else{
-            detail.text="Houd één gezicht in het midden van de cirkel.";return
-        }
-        if detail.text != "Beweeg je hoofd langzaam in een volledige cirkel." { detail.text="Beweeg je hoofd langzaam in een volledige cirkel." }
-        if guide.observe(yaw:yaw,pitch:pitch){
-            ring.update(sectors:guide.sectors)
-            roundProgress.setProgress(Float((guide.round-1)*8+guide.sectors.count)/16,animated:true)
-            UISelectionFeedbackGenerator().selectionChanged()
-            if guide.sectors.count==8{
-                transition=true
-                let first=guide.round==1
-                progress.text=first ? "Eerste oefenronde voltooid" : "Oefening voltooid"
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                DispatchQueue.main.asyncAfter(deadline:.now()+0.65){[weak self] in
-                    guard let self=self,self.active else{return}
-                    self.guide.advance()
-                    if self.guide.finished {
-                        self.detail.text="Bevestig nu met Apple's echte Face ID."
-                        var cfg=self.action.configuration;cfg?.title="Bevestig Face ID";self.action.configuration=cfg
-                        self.stopCamera()
-                    } else{
-                        self.ring.update(sectors:[]);self.progress.text="Oefenronde 2 van 2"
-                        self.detail.text="Kijk recht vooruit en maak nog een cirkel."
-                        self.transition=false
-                    }
-                }
+    private func cameraReady(){
+        guard active,completion != nil else{return}
+        progress.text="Cameraweergave gereed"
+        // Decorative readiness indicator, not a biometric or identity check.
+        for step in 1...8 {
+            let delay=UIAccessibility.isReduceMotionEnabled ? 0 : Double(step)*0.065
+            DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in
+                guard let self=self,self.active,self.completion != nil else{return}
+                self.ring.update(sectors:Set(0..<step))
             }
         }
     }
@@ -666,10 +598,10 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
         let ctx=LAContext()
         var error:NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,error:&error),ctx.biometryType == .faceID else{info("Stel Face ID eerst in via de instellingen van je iPhone.");return}
-        let alert=UIAlertController(title:"Face ID inschakelen",message:"Bevestig eerst je persoonlijke PolderSMP-code. Je code wordt niet opgeslagen.",preferredStyle:.alert)
+        let alert=UIAlertController(title:"Face ID inschakelen",message:"Voer één keer je persoonlijke toegangscode in. Daarna bevestig je met Face ID.",preferredStyle:.alert)
         alert.addTextField{ $0.isSecureTextEntry=true;$0.keyboardType = .numberPad;$0.placeholder="Toegangscode" }
         alert.addAction(UIAlertAction(title:"Annuleren",style:.cancel))
-        alert.addAction(UIAlertAction(title:"Bevestig",style:.default){ _ in
+        alert.addAction(UIAlertAction(title:"Ga door",style:.default){ _ in
             let code=alert.textFields?.first?.text ?? ""
             let epoch=self.generation
             self.biometricRequest(url,"device-enroll",["code":code],session:session){body,status in
