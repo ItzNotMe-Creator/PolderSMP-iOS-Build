@@ -384,6 +384,7 @@ final class FaceLockView: UIView {
     }
     func apply(_ next:State,attempt:Int) {
         state=next
+        ring.alpha=1
         islandAuth.show(next,attempt:attempt)
         ring.layer.removeAllAnimations()
         scan.layer.removeAllAnimations();orbitMask.removeAllAnimations()
@@ -437,7 +438,18 @@ final class FaceLockView: UIView {
             ring.layer.add(pop,forKey:"success")
         }
     }
-    func stopAnimations(){ring.layer.removeAllAnimations();scan.layer.removeAllAnimations();orbitMask.removeAllAnimations();islandAuth.reset()}
+    func systemPromptActive(_ active:Bool){
+        // Native Face ID owns its system UI. Keep the custom island and scan out of its way.
+        if active {
+            stopAnimations()
+            islandAuth.alpha=0;ring.alpha=0
+            heading.text="Face ID";detail.text="Kijk naar je iPhone om veilig in te loggen."
+            code.isEnabled=false
+        } else {
+            ring.alpha=1;code.isEnabled=true
+        }
+    }
+    func stopAnimations(){ring.layer.removeAllAnimations();scan.layer.removeAllAnimations();orbitMask.removeAllAnimations();islandAuth.reset();ring.alpha=1}
 }
 
 final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler, URLSessionTaskDelegate {
@@ -494,6 +506,7 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
     private func presentFace() {
         firstInstall.isHidden=true;web.isHidden=true
         faceScreen.alpha=1;faceScreen.isHidden=false
+        faceScreen.systemPromptActive(false)
         faceScreen.apply(.waiting,attempt:0)
     }
     private func dismissFace() {
@@ -518,15 +531,18 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
         let epoch=generation
         let ctx=LAContext();faceContext=ctx
         ctx.localizedFallbackTitle="Gebruik toegangscode"
+        ctx.localizedReason="Ontgrendel PolderSMP"
         var error:NSError?
         guard ctx.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,error:&error),ctx.biometryType == .faceID else{
             showCode("Face ID is niet beschikbaar. Gebruik je persoonlijke code.");return
         }
         faceAttempts += 1
         faceScreen.apply(.scanning,attempt:faceAttempts)
+        faceScreen.systemPromptActive(true)
         ctx.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics,localizedReason:"Ontgrendel PolderSMP") { success, failure in
             DispatchQueue.main.async {
                 guard self.generation==epoch,self.faceBusy else{return}
+                self.faceScreen.systemPromptActive(false)
                 if !success {
                     self.faceBusy=false;self.faceContext=nil
                     if (failure as? LAError)?.code == .authenticationFailed {
@@ -539,6 +555,8 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
                     } else { self.showCode("Gebruik je persoonlijke toegangscode om in te loggen.") }
                     return
                 }
+                // Reuse the already authenticated context; never display a second biometric dialog.
+                ctx.interactionNotAllowed=true
                 var q=self.keychainQuery(url)
                 q[kSecReturnData as String]=true
                 q[kSecMatchLimit as String]=kSecMatchLimitOne
