@@ -6,8 +6,11 @@ on:
 permissions:
   contents: read
 jobs:
-  syntax:
+  browser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: node --check shared/client-style.js
+      - run: npm install --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/ui/studio.cjs
