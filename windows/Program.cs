@@ -32,7 +32,7 @@ internal sealed class ControlWindow : Form
     private bool retryNeeded;
     private readonly HttpClient http = new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(8)};
     public ControlWindow(){
-        Text="PolderSMP Control";MinimumSize=new Size(650,520);Size=new Size(1100,760);
+        Text="PolderSMP Control Studio";MinimumSize=new Size(650,520);Size=new Size(1100,760);
         StartPosition=FormStartPosition.CenterScreen;BackColor=Color.FromArgb(15,18,24);ForeColor=Color.White;
         Font=new Font("Segoe UI",10);Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         KeyPreview=true;
@@ -52,7 +52,7 @@ internal sealed class ControlWindow : Form
         var stack=new TableLayoutPanel{AutoSize=true,ColumnCount=1,RowCount=8,Anchor=AnchorStyles.None,Padding=new Padding(12),BackColor=welcome.BackColor};
         var logo=new PictureBox{Width=64,Height=64,SizeMode=PictureBoxSizeMode.Zoom,Image=Icon.ToBitmap(),Margin=new Padding(0,0,0,16)};
         stack.Controls.Add(logo);
-        stack.Controls.Add(new Label{Text="PolderSMP Control 2.0",AutoSize=true,Font=new Font("Segoe UI",24,FontStyle.Bold),Margin=new Padding(0,0,0,8)});
+        stack.Controls.Add(new Label{Text="PolderSMP Control Studio",AutoSize=true,Font=new Font("Segoe UI",24,FontStyle.Bold),Margin=new Padding(0,0,0,8)});
         stack.Controls.Add(new Label{Text="Verbind met je eigen serveraccount. Je toegang wordt bepaald door de eigenaar.",AutoSize=true,MaximumSize=new Size(430,0),ForeColor=Color.FromArgb(170,181,198),Margin=new Padding(0,0,0,24)});
         stack.Controls.Add(new Label{Text="Privé HTTPS-serveradres (Tailscale)",AutoSize=true,Margin=new Padding(0,0,0,6)});
         address.PlaceholderText="https://voorbeeld.ts.net:8443/";
