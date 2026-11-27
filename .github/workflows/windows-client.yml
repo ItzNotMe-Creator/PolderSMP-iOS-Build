@@ -1,0 +1,45 @@
+name: Build Windows client
+on:
+  push:
+    branches: [main]
+    paths: ['windows/**', '.github/workflows/windows-client.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Create app icon from PolderSMP logo
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $src = [System.Drawing.Image]::FromFile((Resolve-Path ios/icon.png))
+          $bitmap = [System.Drawing.Bitmap]::new($src, 256, 256)
+          $mem = [System.IO.MemoryStream]::new()
+          $bitmap.Save($mem, [System.Drawing.Imaging.ImageFormat]::Png)
+          $png = $mem.ToArray()
+          $out = [System.IO.BinaryWriter]::new([System.IO.File]::Create((Join-Path $PWD 'windows/app.ico')))
+          $out.Write([uint16]0); $out.Write([uint16]1); $out.Write([uint16]1)
+          $out.Write([byte]0); $out.Write([byte]0); $out.Write([byte]0); $out.Write([byte]0)
+          $out.Write([uint16]1); $out.Write([uint16]32); $out.Write([uint32]$png.Length); $out.Write([uint32]22); $out.Write($png)
+          $out.Dispose(); $mem.Dispose(); $bitmap.Dispose(); $src.Dispose()
+      - name: Compile standalone Windows EXE
+        shell: pwsh
+        run: |
+          dotnet publish windows/PolderSMP.Client.csproj -c Release -o publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = Get-Item publish/PolderSMP-Client.exe
+          if ($exe.Length -lt 1000000) { throw 'Unexpected executable size' }
+          Get-FileHash $exe.FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PolderSMP-Windows-Client
+          path: publish/PolderSMP-Client.exe
+          if-no-files-found: error
+          retention-days: 7

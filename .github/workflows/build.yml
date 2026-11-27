@@ -2,6 +2,7 @@ name: Build iPhone IPA
 on:
   push:
     branches: [main]
+    paths: ['ios/**', '.github/workflows/build.yml']
   workflow_dispatch:
 permissions:
   contents: read
