@@ -1,4 +1,4 @@
-name: Validate Control Studio UI
+name: Validate Atlas UI
 on:
   push:
     branches: [main]
@@ -14,3 +14,10 @@ jobs:
       - run: npm install --no-save playwright
       - run: npx playwright install --with-deps chromium
       - run: node tests/ui/studio.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Atlas-preview
+          path: preview/*.png
+          retention-days: 7
+          if-no-files-found: warn
