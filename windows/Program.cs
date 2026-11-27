@@ -23,7 +23,7 @@ internal sealed class ControlWindow : Form
     private readonly WebView2 web = new(){Dock=DockStyle.Fill};
     private readonly Label status = new(){AutoSize=true,ForeColor=Color.FromArgb(160,172,189),Margin=new Padding(8,10,8,0)};
     private readonly Panel content = new(){Dock=DockStyle.Fill};
-    private readonly Panel welcome = new(){Dock=DockStyle.Fill,BackColor=Color.FromArgb(15,18,24)};
+    private readonly Panel welcome = new(){Dock=DockStyle.Fill,BackColor=Color.FromArgb(11,17,24)};
     private readonly TextBox address = new(){Width=410,Font=new Font("Segoe UI",11)};
     private Uri? origin;
     private bool ready, connecting;
@@ -32,15 +32,15 @@ internal sealed class ControlWindow : Form
     private bool retryNeeded;
     private readonly HttpClient http = new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(8)};
     public ControlWindow(){
-        Text="PolderSMP Control Studio";MinimumSize=new Size(650,520);Size=new Size(1100,760);
+        Text="PolderSMP Atlas";MinimumSize=new Size(650,520);Size=new Size(1330,850);
         StartPosition=FormStartPosition.CenterScreen;BackColor=Color.FromArgb(15,18,24);ForeColor=Color.White;
         Font=new Font("Segoe UI",10);Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         KeyPreview=true;
         KeyDown+=(_,e)=>{if(e.KeyCode==Keys.F5){e.SuppressKeyPress=true;if(ready&&origin!=null)web.Reload();}else if(e.Control&&e.KeyCode==Keys.L){e.SuppressKeyPress=true;_=Lock();}};
         reconnect.Tick+=async(_,_)=>{if(retryNeeded&&!connecting)await Connect();};reconnect.Start();
         FormClosed+=(_,_)=>{reconnect.Stop();reconnect.Dispose();http.Dispose();};
-        var bar=new FlowLayoutPanel{Dock=DockStyle.Top,Height=54,BackColor=Color.FromArgb(21,27,36),Padding=new Padding(10,4,0,0),WrapContents=false};
-        var brand=new Label{Text="PolderSMP  /  Control",AutoSize=true,Font=new Font("Segoe UI",12,FontStyle.Bold),Margin=new Padding(3,8,18,0)};
+        var bar=new FlowLayoutPanel{Dock=DockStyle.Top,Height=54,BackColor=Color.FromArgb(19,29,39),Padding=new Padding(10,4,0,0),WrapContents=false};
+        var brand=new Label{Text="PolderSMP  /  Atlas",AutoSize=true,Font=new Font("Segoe UI",12,FontStyle.Bold),Margin=new Padding(3,8,18,0)};
         bar.Controls.Add(new PictureBox{Width=28,Height=28,SizeMode=PictureBoxSizeMode.Zoom,Image=Icon.ToBitmap(),Margin=new Padding(3,7,5,0)});
         bar.Controls.Add(brand);
         bar.Controls.Add(Button("Vernieuwen",()=>{if(ready&&origin!=null)web.Reload();}));
@@ -52,8 +52,8 @@ internal sealed class ControlWindow : Form
         var stack=new TableLayoutPanel{AutoSize=true,ColumnCount=1,RowCount=8,Anchor=AnchorStyles.None,Padding=new Padding(12),BackColor=welcome.BackColor};
         var logo=new PictureBox{Width=64,Height=64,SizeMode=PictureBoxSizeMode.Zoom,Image=Icon.ToBitmap(),Margin=new Padding(0,0,0,16)};
         stack.Controls.Add(logo);
-        stack.Controls.Add(new Label{Text="PolderSMP Control Studio",AutoSize=true,Font=new Font("Segoe UI",24,FontStyle.Bold),Margin=new Padding(0,0,0,8)});
-        stack.Controls.Add(new Label{Text="Verbind met je eigen serveraccount. Je toegang wordt bepaald door de eigenaar.",AutoSize=true,MaximumSize=new Size(430,0),ForeColor=Color.FromArgb(170,181,198),Margin=new Padding(0,0,0,24)});
+        stack.Controls.Add(new Label{Text="PolderSMP Atlas",AutoSize=true,Font=new Font("Segoe UI",24,FontStyle.Bold),Margin=new Padding(0,0,0,8)});
+        stack.Controls.Add(new Label{Text="Jouw netwerk, één werkruimte. Verbind veilig met je persoonlijke account.",AutoSize=true,MaximumSize=new Size(430,0),ForeColor=Color.FromArgb(170,181,198),Margin=new Padding(0,0,0,24)});
         stack.Controls.Add(new Label{Text="Privé HTTPS-serveradres (Tailscale)",AutoSize=true,Margin=new Padding(0,0,0,6)});
         address.PlaceholderText="https://voorbeeld.ts.net:8443/";
         stack.Controls.Add(address);
@@ -66,7 +66,7 @@ internal sealed class ControlWindow : Form
         Shown+=async(_,_)=>{try{Directory.CreateDirectory(data);var file=Path.Combine(data,"server.txt");if(File.Exists(file)){address.Text=File.ReadAllText(file);await Connect();}}catch(Exception e){status.Text="Instellingen niet beschikbaar";MessageBox.Show(this,e.Message,"PolderSMP");}};
     }
     private static Button Button(string text,Action click){
-        var b=new Button{Text=text,AutoSize=true,Height=32,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(40,61,88),ForeColor=Color.White,Cursor=Cursors.Hand,Margin=new Padding(4,2,4,2)};
+        var b=new Button{Text=text,AutoSize=true,Height=32,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(32,59,61),ForeColor=Color.White,Cursor=Cursors.Hand,Margin=new Padding(4,2,4,2)};
         b.FlatAppearance.BorderSize=0;b.Click+=(_,_)=>click();return b;
     }
     internal static Uri? ValidateAddress(string value){

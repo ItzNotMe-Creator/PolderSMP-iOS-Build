@@ -30,7 +30,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileChooser;
     private static final int FILE_PICK=771;
     private int generation = 0;
-    private static final int BG = 0xff101827, FG = 0xffeef3fb;
+    private static final int BG = 0xff0b1118, FG = 0xffe7eff6;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
@@ -41,12 +41,12 @@ public class MainActivity extends Activity {
         } catch (Exception e) { clientStyle = null; }
         root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(BG);
         LinearLayout bar = new LinearLayout(this); bar.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(16),dp(6),dp(8),dp(6));
-        brand = new TextView(this); brand.setText("PolderSMP"); brand.setTextColor(FG); brand.setTextSize(19);brand.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
+        bar.setPadding(dp(16),dp(6),dp(8),dp(6));bar.setBackgroundColor(0xff131d27);
+        brand = new TextView(this); brand.setText("PolderSMP / Atlas"); brand.setTextColor(FG); brand.setTextSize(19);brand.setTypeface(android.graphics.Typeface.DEFAULT,android.graphics.Typeface.BOLD);
         ImageView logo=new ImageView(this);logo.setImageResource(nl.poldersmp.control.R.drawable.polder_brand);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(30),dp(30));lp.setMarginEnd(dp(10));bar.addView(logo,lp);
         bar.addView(brand,new LinearLayout.LayoutParams(0,dp(48),1));
         TextView refresh=new TextView(this);refresh.setText("↻");refresh.setTextColor(FG);refresh.setTextSize(25);refresh.setGravity(android.view.Gravity.CENTER);refresh.setContentDescription("Vernieuwen");refresh.setOnClickListener(v->{if(origin!=null)openPanel();});bar.addView(refresh,new LinearLayout.LayoutParams(dp(44),dp(48)));
-        Button connection = new Button(this); connection.setText("Koppel"); connection.setOnClickListener(v -> {
+        Button connection = new Button(this); connection.setText("Koppel"); connection.setAllCaps(false); connection.setOnClickListener(v -> {
             if (origin == null) editAddress(null);
             else web.evaluateJavascript("typeof owner === 'function' && owner() ? key : ''", value -> {
                 try { String token = (String)new org.json.JSONTokener(value).nextValue();
@@ -56,7 +56,7 @@ public class MainActivity extends Activity {
             });
         });
         bar.addView(connection); root.addView(bar);
-        status = new TextView(this); status.setTextColor(0xff9fc4ff);status.setTextSize(13); status.setPadding(dp(16),dp(12),dp(16),dp(12)); root.addView(status);
+        status = new TextView(this); status.setTextColor(0xff72dfc1);status.setTextSize(13); status.setPadding(dp(16),dp(12),dp(16),dp(12)); root.addView(status);
         web = new WebView(this); web.setBackgroundColor(BG);
         WebSettings s = web.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false); s.setAllowContentAccess(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);

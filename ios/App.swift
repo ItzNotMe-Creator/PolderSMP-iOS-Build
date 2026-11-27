@@ -294,13 +294,13 @@ final class FaceLockView: UIView {
         islandAuth.translatesAutoresizingMaskIntoConstraints=false;addSubview(islandAuth)
         NSLayoutConstraint.activate([islandAuth.topAnchor.constraint(equalTo:safeAreaLayoutGuide.topAnchor,constant:5),islandAuth.centerXAnchor.constraint(equalTo:centerXAnchor),islandAuth.widthAnchor.constraint(equalTo:widthAnchor)])
         let brand = UILabel()
-        brand.text = "P O L D E R S M P  /  S E C U R E"
+        brand.text = "P O L D E R S M P  /  A T L A S"
         brand.font = .systemFont(ofSize: 11, weight: .semibold)
         brand.textColor = .secondaryLabel
         brand.textAlignment = .center
         brand.adjustsFontSizeToFitWidth = true
         ring.translatesAutoresizingMaskIntoConstraints = false
-        ring.layer.cornerRadius = 62
+        ring.layer.cornerRadius = 76
         ring.layer.borderWidth = 0
         orbit.fillColor=UIColor.clear.cgColor;orbit.lineWidth=2.2;orbit.lineCap = .round
         orbitMask.fillColor=UIColor.clear.cgColor;orbitMask.strokeColor=UIColor.white.cgColor;orbitMask.lineWidth=3
@@ -313,7 +313,7 @@ final class FaceLockView: UIView {
         scan.layer.cornerRadius = 1
         ring.addSubview(scan)
         NSLayoutConstraint.activate([
-            ring.widthAnchor.constraint(equalToConstant: 124),ring.heightAnchor.constraint(equalToConstant: 124),
+            ring.widthAnchor.constraint(equalToConstant: 152),ring.heightAnchor.constraint(equalToConstant: 152),
             glyph.centerXAnchor.constraint(equalTo: ring.centerXAnchor),glyph.centerYAnchor.constraint(equalTo: ring.centerYAnchor),
             glyph.widthAnchor.constraint(equalToConstant: 65),glyph.heightAnchor.constraint(equalToConstant: 65),
             scan.widthAnchor.constraint(equalToConstant: 74),scan.heightAnchor.constraint(equalToConstant: 2),
@@ -434,7 +434,7 @@ final class FaceLockView: UIView {
             ring.layer.add(shake,forKey:"shake")
         } else if next == .success {
             let pop=CAKeyframeAnimation(keyPath:"transform.scale")
-            pop.values=[0.94,1.04,1.0];pop.duration=0.52
+            pop.values=[0.90,1.055,1.0];pop.duration=0.62
             ring.layer.add(pop,forKey:"success")
         }
     }
@@ -588,7 +588,7 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
                                         guard self.generation==epoch else{return}
                                         self.firstInstall.isHidden=true;self.web.isHidden=false
                                         if UIAccessibility.isReduceMotionEnabled { self.dismissFace() }
-                                        else { UIView.animate(withDuration:0.38,delay:0,options:[.curveEaseInOut,.beginFromCurrentState],animations:{self.faceScreen.alpha=0}){_ in
+                                        else { UIView.animate(withDuration:0.44,delay:0,options:[.curveEaseInOut,.beginFromCurrentState],animations:{self.faceScreen.alpha=0}){_ in
                                             guard self.generation==epoch else{return};self.dismissFace()
                                         } }
                                     }
@@ -692,7 +692,7 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
         icon.clipsToBounds = true
         icon.widthAnchor.constraint(equalToConstant: 30).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 30).isActive = true
-        name.text = "PolderSMP"
+        name.text = "PolderSMP / Atlas"
         name.font = .systemFont(ofSize:18,weight:.semibold)
         name.adjustsFontForContentSizeCategory = true
         let brand = UIStackView(arrangedSubviews: [icon, name])
