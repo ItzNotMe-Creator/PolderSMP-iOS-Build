@@ -5,6 +5,10 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Reflection;
 
 internal static class Program
 {
@@ -23,22 +27,32 @@ internal sealed class ControlWindow : Form
     private readonly TextBox address = new(){Width=410,Font=new Font("Segoe UI",11)};
     private Uri? origin;
     private bool ready, connecting;
+    private long navigationId;
+    private readonly System.Windows.Forms.Timer reconnect = new(){Interval=5000};
+    private bool retryNeeded;
+    private readonly HttpClient http = new(new HttpClientHandler{AllowAutoRedirect=false}){Timeout=TimeSpan.FromSeconds(8)};
     public ControlWindow(){
         Text="PolderSMP Control";MinimumSize=new Size(650,520);Size=new Size(1100,760);
         StartPosition=FormStartPosition.CenterScreen;BackColor=Color.FromArgb(15,18,24);ForeColor=Color.White;
-        Font=new Font("Segoe UI",10);Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-        var bar=new FlowLayoutPanel{Dock=DockStyle.Top,Height=48,BackColor=Color.FromArgb(24,30,40),Padding=new Padding(10,4,0,0),WrapContents=false};
+        Font=new Font("Segoe UI",10);Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
+        KeyPreview=true;
+        KeyDown+=(_,e)=>{if(e.KeyCode==Keys.F5){e.SuppressKeyPress=true;if(ready&&origin!=null)web.Reload();}else if(e.Control&&e.KeyCode==Keys.L){e.SuppressKeyPress=true;_=Lock();}};
+        reconnect.Tick+=async(_,_)=>{if(retryNeeded&&!connecting)await Connect();};reconnect.Start();
+        FormClosed+=(_,_)=>{reconnect.Stop();reconnect.Dispose();http.Dispose();};
+        var bar=new FlowLayoutPanel{Dock=DockStyle.Top,Height=54,BackColor=Color.FromArgb(21,27,36),Padding=new Padding(10,4,0,0),WrapContents=false};
         var brand=new Label{Text="PolderSMP  /  Control",AutoSize=true,Font=new Font("Segoe UI",12,FontStyle.Bold),Margin=new Padding(3,8,18,0)};
+        bar.Controls.Add(new PictureBox{Width=28,Height=28,SizeMode=PictureBoxSizeMode.Zoom,Image=Icon.ToBitmap(),Margin=new Padding(3,7,5,0)});
         bar.Controls.Add(brand);
         bar.Controls.Add(Button("Vernieuwen",()=>{if(ready&&origin!=null)web.Reload();}));
-        bar.Controls.Add(Button("Verbinding",()=>{if(connecting)return;if(origin!=null){web.Visible=false;web.CoreWebView2.Navigate("about:blank");}welcome.Visible=true;welcome.BringToFront();status.Text="Serveradres instellen";}));
+        bar.Controls.Add(Button("Vergrendel",async()=>await Lock()));
+        bar.Controls.Add(Button("Verbinding",async()=>{if(connecting)return;retryNeeded=false;await Lock();if(ready){web.Visible=false;web.CoreWebView2.Navigate("about:blank");}welcome.Visible=true;welcome.BringToFront();status.Text="Serveradres instellen";}));
         bar.Controls.Add(status);
         Controls.Add(content);Controls.Add(bar);
         content.Controls.Add(web);content.Controls.Add(welcome);web.Visible=false;
-        var stack=new TableLayoutPanel{AutoSize=true,ColumnCount=1,RowCount=7,Anchor=AnchorStyles.None,Padding=new Padding(12),BackColor=welcome.BackColor};
+        var stack=new TableLayoutPanel{AutoSize=true,ColumnCount=1,RowCount=8,Anchor=AnchorStyles.None,Padding=new Padding(12),BackColor=welcome.BackColor};
         var logo=new PictureBox{Width=64,Height=64,SizeMode=PictureBoxSizeMode.Zoom,Image=Icon.ToBitmap(),Margin=new Padding(0,0,0,16)};
         stack.Controls.Add(logo);
-        stack.Controls.Add(new Label{Text="Welkom bij PolderSMP",AutoSize=true,Font=new Font("Segoe UI",24,FontStyle.Bold),Margin=new Padding(0,0,0,8)});
+        stack.Controls.Add(new Label{Text="PolderSMP Control 2.0",AutoSize=true,Font=new Font("Segoe UI",24,FontStyle.Bold),Margin=new Padding(0,0,0,8)});
         stack.Controls.Add(new Label{Text="Verbind met je eigen serveraccount. Je toegang wordt bepaald door de eigenaar.",AutoSize=true,MaximumSize=new Size(430,0),ForeColor=Color.FromArgb(170,181,198),Margin=new Padding(0,0,0,24)});
         stack.Controls.Add(new Label{Text="Privé HTTPS-serveradres (Tailscale)",AutoSize=true,Margin=new Padding(0,0,0,6)});
         address.PlaceholderText="https://voorbeeld.ts.net:8443/";
@@ -63,35 +77,51 @@ internal sealed class ControlWindow : Form
     private bool Allowed(string url){
         return origin!=null&&Uri.TryCreate(url,UriKind.Absolute,out var u)&&u.Scheme=="https"&&string.Equals(u.IdnHost,origin.IdnHost,StringComparison.OrdinalIgnoreCase)&&u.Port==origin.Port;
     }
+    private async Task Lock(){
+        if(!ready||origin==null||!Allowed(web.Source?.AbsoluteUri??""))return;
+        try{await web.ExecuteScriptAsync("if(typeof disconnect==='function')disconnect('',true)");}catch{ }
+    }
+    private async Task Probe(Uri target){
+        using var request=new HttpRequestMessage(HttpMethod.Post,new Uri(target,"api/login-info"));
+        request.Content=new StringContent("{}",Encoding.UTF8,"application/json");
+        using var response=await http.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        using var doc=JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        if(!doc.RootElement.TryGetProperty("setup",out var setup)||!doc.RootElement.TryGetProperty("needsStation",out var station)||(setup.ValueKind!=JsonValueKind.True&&setup.ValueKind!=JsonValueKind.False)||(station.ValueKind!=JsonValueKind.True&&station.ValueKind!=JsonValueKind.False))throw new InvalidOperationException("Onbekend PolderBeheer-paneel.");
+    }
     private async Task Connect(){
         if(connecting)return;
         var target=ValidateAddress(address.Text);
-        if(target==null){MessageBox.Show(this,"Gebruik een geldig HTTPS-adres van Tailscale Serve, eventueel met poort.","Ongeldig adres");return;}
-        connecting=true;status.Text="Verbinden…";
+        if(target==null){retryNeeded=false;MessageBox.Show(this,"Gebruik een geldig HTTPS-adres van Tailscale Serve, eventueel met poort.","Ongeldig adres");return;}
+        connecting=true;status.Text="Verbinding controleren…";
         try{
+            await Probe(target);
             if(!ready){
                 Directory.CreateDirectory(data);
                 var env=await CoreWebView2Environment.CreateAsync(null,Path.Combine(data,"WebView"));
                 await web.EnsureCoreWebView2Async(env);
                 var core=web.CoreWebView2;
+                using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("PolderSMP.ClientStyle.js")){
+                    if(stream!=null){using var reader=new StreamReader(stream);await core.AddScriptToExecuteOnDocumentCreatedAsync("document.addEventListener('DOMContentLoaded',()=>{"+await reader.ReadToEndAsync()+"},{once:true});");}
+                }
                 core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDevToolsEnabled=false;
                 core.Settings.IsPasswordAutosaveEnabled=false;core.Settings.IsGeneralAutofillEnabled=false;
-                core.NavigationStarting+=(_,e)=>{if(e.Uri!="about:blank"&&!Allowed(e.Uri))e.Cancel=true;};
+                core.NavigationStarting+=(_,e)=>{if(e.Uri!="about:blank"&&!Allowed(e.Uri))e.Cancel=true;else navigationId=(long)e.NavigationId;};
                 core.FrameNavigationStarting+=(_,e)=>{if(e.Uri!="about:blank"&&!Allowed(e.Uri))e.Cancel=true;};
                 core.NewWindowRequested+=(_,e)=>e.Handled=true;
                 core.PermissionRequested+=(_,e)=>e.State=CoreWebView2PermissionState.Deny;
                 core.DownloadStarting+=(_,e)=>e.Cancel=true;
                 core.NavigationCompleted+=(_,e)=>{
-                    if(core.Source=="about:blank")return;
-                    if(!e.IsSuccess){status.Text="Niet verbonden";web.Visible=false;welcome.Visible=true;welcome.BringToFront();return;}
-                    status.Text="Verbonden";welcome.Visible=false;web.Visible=true;web.BringToFront();
-                    if(origin!=null)File.WriteAllText(Path.Combine(data,"server.txt"),origin.AbsoluteUri);
+                    if(core.Source=="about:blank"||(long)e.NavigationId!=navigationId)return;
+                    if(!e.IsSuccess){retryNeeded=true;status.Text="Niet verbonden · opnieuw proberen…";web.Visible=false;welcome.Visible=true;welcome.BringToFront();return;}
+                    retryNeeded=false;status.Text="Verbonden";welcome.Visible=false;web.Visible=true;web.BringToFront();
+                    if(origin!=null){try{File.WriteAllText(Path.Combine(data,"server.txt"),origin.AbsoluteUri);}catch(IOException){status.Text="Verbonden · adres niet opgeslagen";}}
                 };
                 ready=true;
             }
             origin=target;web.CoreWebView2.Navigate(target.AbsoluteUri);
         }catch(WebView2RuntimeNotFoundException){status.Text="WebView2 ontbreekt";MessageBox.Show(this,"Installeer Microsoft Edge WebView2 Runtime via Microsoft en open PolderSMP opnieuw.","WebView2 vereist");}
-        catch(Exception e){status.Text="Verbinding mislukt";MessageBox.Show(this,e.Message,"PolderSMP");}
+        catch(Exception){retryNeeded=true;status.Text="Niet verbonden · controleer Tailscale";welcome.Visible=true;welcome.BringToFront();}
         finally{connecting=false;}
     }
 }

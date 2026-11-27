@@ -2,7 +2,7 @@ name: Build Windows client
 on:
   push:
     branches: [main]
-    paths: ['windows/**', '.github/workflows/windows-client.yml']
+    paths: ['windows/**', 'shared/**', '.github/workflows/windows-client.yml']
   workflow_dispatch:
 permissions:
   contents: read

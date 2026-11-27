@@ -693,19 +693,20 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
         icon.widthAnchor.constraint(equalToConstant: 30).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 30).isActive = true
         name.text = "PolderSMP"
-        name.font = .preferredFont(forTextStyle: .headline)
+        name.font = .systemFont(ofSize:18,weight:.semibold)
         name.adjustsFontForContentSizeCategory = true
         let brand = UIStackView(arrangedSubviews: [icon, name])
         brand.spacing = 10
         brand.alignment = .center
         brand.translatesAutoresizingMaskIntoConstraints = false
         screen.addSubview(brand)
-        recovery.setImage(UIImage(systemName: "wifi"), for: .normal)
+        recovery.setImage(UIImage(systemName: "arrow.clockwise.circle"), for: .normal)
+        recovery.tintColor = .systemBlue
         recovery.accessibilityLabel = "Verbinding herstellen"
         recovery.addTarget(self, action: #selector(recoverConnection), for: .touchUpInside)
         recovery.translatesAutoresizingMaskIntoConstraints = false
         screen.addSubview(recovery)
-        firstInstall.text = "Open de koppellink van je eigenaar op deze iPhone. Daarna kun je inloggen met je eigen code."
+        firstInstall.text = "Welkom bij PolderSMP\n\nTik op het verbindingsicoon of open een koppellink van je eigenaar. Log daarna in met je eigen code."
         firstInstall.numberOfLines = 0
         firstInstall.textAlignment = .center
         firstInstall.font = .preferredFont(forTextStyle: .body)
@@ -733,7 +734,7 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
             firstInstall.centerYAnchor.constraint(equalTo: screen.safeAreaLayoutGuide.centerYAnchor),
             firstInstall.leadingAnchor.constraint(equalTo: screen.safeAreaLayoutGuide.leadingAnchor, constant: 32),
             firstInstall.trailingAnchor.constraint(equalTo: screen.safeAreaLayoutGuide.trailingAnchor, constant: -32),
-            web.topAnchor.constraint(equalTo: brand.bottomAnchor, constant: 8),
+            web.topAnchor.constraint(equalTo: recovery.bottomAnchor, constant: 4),
             web.bottomAnchor.constraint(equalTo: screen.safeAreaLayoutGuide.bottomAnchor),
             web.leadingAnchor.constraint(equalTo: screen.safeAreaLayoutGuide.leadingAnchor),
             web.trailingAnchor.constraint(equalTo: screen.safeAreaLayoutGuide.trailingAnchor)
@@ -743,6 +744,7 @@ final class Panel: UIViewController, WKUIDelegate, WKNavigationDelegate, WKScrip
     private func installScripts() {
         let controller=web.configuration.userContentController
         controller.removeAllUserScripts()
+        if let file=Bundle.main.url(forResource:"client-style",withExtension:"js"),let script=try? String(contentsOf:file,encoding:.utf8){ controller.addUserScript(WKUserScript(source:script,injectionTime:.atDocumentEnd,forMainFrameOnly:true)) }
         controller.addUserScript(WKUserScript(source:"window.polderNativeBiometric="+(faceEnabled ? "true":"false")+";window.polderFaceRetry=false;window.polderFaceDeviceId="+(faceDevice.map{"'"+$0+"'"} ?? "null")+";",injectionTime:.atDocumentStart,forMainFrameOnly:true))
         web.configuration.userContentController.addUserScript(WKUserScript(source: """
         document.documentElement.setAttribute('data-iphone','');
